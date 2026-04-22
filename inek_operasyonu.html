@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Beytullah Öztürk | Uzay Operasyonu Mobil</title>
+    <style>
+        body {
+            margin: 0; background: #020205; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; height: 100vh;
+            color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden;
+            touch-action: none; /* Mobilde ekranın kaymasını engeller */
+        }
+        #game-container { position: relative; width: 100%; max-width: 800px; aspect-ratio: 8/5; }
+        canvas { 
+            background: #000; border: 2px solid #00f2ff; border-radius: 15px; 
+            display: none; width: 100%; height: 100%; 
+        }
+        
+        .ekran {
+            width: 100%; height: 100%; background: rgba(5, 5, 15, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border: 3px solid #00f2ff; border-radius: 15px; text-align: center;
+        }
+        h1 { font-size: clamp(30px, 8vw, 60px); margin: 0; color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
+        .yapimci { font-size: clamp(14px, 4vw, 20px); color: #4ecca3; margin-top: 5px; }
+        
+        .rekor-paneli {
+            margin: 20px 0; padding: 10px 20px; border: 2px dashed #ffcc00;
+            border-radius: 10px; font-size: clamp(16px, 5vw, 24px); color: #ffcc00;
+        }
+
+        button {
+            padding: 15px 50px; font-size: clamp(18px, 5vw, 24px); background: #00f2ff; color: #000;
+            border: none; border-radius: 50px; cursor: pointer; font-weight: bold;
+        }
+        
+        #panel {
+            position: absolute; top: 10px; width: 100%; display: flex;
+            justify-content: space-around; font-size: clamp(14px, 4vw, 20px);
+            pointer-events: none; color: #fff; z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="baslangic-ekrani" class="ekran">
+            <h1>UZAY OPERASYONU</h1>
+            <div class="yapimci">Yapımcı: Beytullah Öztürk</div>
+            <div class="rekor-paneli">🏆 REKOR: <span id="rekor-sayisi">0</span></div>
+            <button onclick="oyunuBaslat()">BAŞLA</button>
+            <p style="margin-top: 15px; color: #666; font-size: 12px;">Bilgisayarda Ok Tuşları, Mobilde Dokun-Sürükle!</p>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+        
+        <div id="panel" style="display:none;">
+            <span>SKOR: <span id="skor-ui">0</span></span>
+            <span>CAN: <span id="can-ui">❤️❤️❤️</span></span>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const baslangicEkrani = document.getElementById("baslangic-ekrani");
+        const panel = document.getElementById("panel");
+        const rekorUi = document.getElementById("rekor-sayisi");
+        
+        let skor = 0, can = 3, rekor = localStorage.getItem("beytullah_rekor") || 0;
+        let oyunDevam = false, yildizlar = [], bombalar = [], zorluk = 1;
+        rekorUi.innerText = rekor;
+
+        const oyuncu = { x: 400, y: 400, r: 25, hiz: 8 };
+        const hedef = { x: 0, y: 0, r: 20 };
+        const tuslar = {};
+
+        // Klavye Kontrolü
+        window.addEventListener("keydown", e => tuslar[e.code] = true);
+        window.addEventListener("keyup", e => tuslar[e.code] = false);
+
+        // MOBİL DOKUNMATİK KONTROLÜ
+        canvas.addEventListener("touchmove", (e) => {
+            if(!oyunDevam) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            oyuncu.x = (touch.clientX - rect.left) * scaleX;
+            oyuncu.y = (touch.clientY - rect.top) * scaleY;
+        }, { passive: false });
+
+        for(let i=0; i<80; i++) yildizlar.push({x: Math.random()*800, y: Math.random()*500, h: Math.random()*2 + 1});
+
+        function hedefKonumlandir() {
+            hedef.x = Math.random() * 700 + 50;
+            hedef.y = Math.random() * 400 + 50;
+        }
+
+        function oyunuBaslat() {
+            baslangicEkrani.style.display = "none";
+            canvas.style.display = "block";
+            panel.style.display = "flex";
+            oyunDevam = true;
+            skor = 0; can = 3; bombalar = []; zorluk = 1;
+            hedefKonumlandir();
+            arayuzGuncelle();
+            dongu();
+        }
+
+        function arayuzGuncelle() {
+            document.getElementById("skor-ui").innerText = skor;
+            document.getElementById("can-ui").innerText = "❤️".repeat(can);
+        }
+
+        function dongu() {
+            if (!oyunDevam) return;
+            guncelle();
+            ciz();
+            requestAnimationFrame(dongu);
+        }
+
+        function guncelle() {
+            // Bilgisayar Kontrolü
+            if (tuslar["ArrowLeft"] && oyuncu.x > oyuncu.r) oyuncu.x -= oyuncu.hiz;
+            if (tuslar["ArrowRight"] && oyuncu.x < 800 - oyuncu.r) oyuncu.x += oyuncu.hiz;
+            if (tuslar["ArrowUp"] && oyuncu.y > oyuncu.r) oyuncu.y -= oyuncu.hiz;
+            if (tuslar["ArrowDown"] && oyuncu.y < 500 - oyuncu.r) oyuncu.y += oyuncu.hiz;
+
+            yildizlar.forEach(y => { y.y += y.h; if(y.y > 500) y.y = 0; });
+
+            if (Math.hypot(oyuncu.x - hedef.x, oyuncu.y - hedef.y) < oyuncu.r + hedef.r) {
+                skor++;
+                zorluk += 0.04;
+                hedefKonumlandir();
+                arayuzGuncelle();
+            }
+
+            if (Math.random() < 0.02 * zorluk) {
+                bombalar.push({ x: Math.random() * 800, y: -20, h: (2.5 + Math.random() * 2.5) * zorluk });
+            }
+
+            bombalar.forEach((b, i) => {
+                b.y += b.h;
+                if (Math.hypot(oyuncu.x - b.x, oyuncu.y - b.y) < oyuncu.r + 10) {
+                    bombalar.splice(i, 1);
+                    can--;
+                    arayuzGuncelle();
+                    if (can <= 0) oyunBitti();
+                }
+                if (b.y > 550) bombalar.splice(i, 1);
+            });
+        }
+
+        function oyunBitti() {
+            oyunDevam = false;
+            if (skor > rekor) localStorage.setItem("beytullah_rekor", skor);
+            alert("OYUN BİTTİ!\nSkorun: " + skor);
+            location.reload();
+        }
+
+        function ciz() {
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, 800, 500);
+            ctx.fillStyle = "#fff";
+            yildizlar.forEach(y => ctx.fillRect(y.x, y.y, 2, 2));
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#00ff00"; ctx.font = "30px Arial";
+            ctx.fillText("🐄", hedef.x - 15, hedef.y + 15);
+
+            ctx.shadowColor = "red";
+            bombalar.forEach(b => ctx.fillText("💣", b.x - 15, b.y));
+
+            ctx.shadowColor = "#00f2ff"; ctx.fillStyle = "#00f2ff";
+            ctx.beginPath();
+            ctx.ellipse(oyuncu.x, oyuncu.y, oyuncu.r, oyuncu.r/2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(oyuncu.x, oyuncu.y - 5, 12, Math.PI, 0);
+            ctx.fillStyle = "rgba(255,255,255,0.6)";
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    </script>
+</body>
+</html>
